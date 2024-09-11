@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:lab/screens/home/home.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -16,17 +18,67 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _confirmPasswordController = TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false; // To show loading state during registration
+  bool _isLoading = false;
 
   @override
   void dispose() {
-    // Dispose of the controllers when the widget is removed from the tree
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true; // Start loading
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:8000/register'), // Use the correct URL
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'first_name': _firstNameController.text,
+          'last_name': _lastNameController.text,
+          'email': _emailController.text,
+          'password': _passwordController.text,
+        }),
+      );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(responseData['message'])),
+        );
+
+        // Navigate to HomePage
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MyHomePage()),
+        );
+      } else {
+        final errorData = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorData['error'] ?? 'Registration failed')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false; // Stop loading
+      });
+    }
   }
 
   @override
@@ -84,7 +136,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your email';
                   }
-                  // Basic email validation
                   if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
                     return 'Please enter a valid email';
                   }
@@ -133,38 +184,7 @@ class _RegisterPageState extends State<RegisterPage> {
               _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : ElevatedButton(
-                onPressed: () async {
-                  if (_formKey.currentState!.validate()) {
-
-                    if (_passwordController.text != _confirmPasswordController.text) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Passwords do not match')),
-                      );
-                      return;
-                    }
-
-                    setState(() {
-                      _isLoading = true; // Start loading
-                    });
-
-                    // Implement your registration functionality here
-
-                    setState(() {
-                      _isLoading = false; // Stop loading
-                    });
-
-                    // Registration successful
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Registration successful!')),
-                    );
-
-                    // Navigate to HomePage
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const MyHomePage()),
-                    );
-                  }
-                },
+                onPressed: _register,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(50), // Set the height of the button
                 ),
